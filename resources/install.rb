@@ -191,12 +191,53 @@ action_class do
 
       package 'apt-transport-https'
 
-      apt_repository "postgresql_org_repository_#{new_resource.version.to_s}" do
-        uri new_resource.apt_repository_uri
-        components ['main', new_resource.version.to_s]
-        distribution "#{node['lsb']['codename']}-pgdg"
-        key new_resource.apt_gpg_key_uri
-        cache_rebuild true
+      if new_resource.repo_pgdg
+        codename = node['lsb']['codename']
+        repo_name = "postgresql_org_repository_#{new_resource.version}"
+        repo_uri = new_resource.apt_repository_uri
+        repo_components = ['main', new_resource.version.to_s]
+        repo_distribution = "#{codename}-pgdg"
+
+        if node['platform_version'].to_f >= 22.04
+          # ues signed_by for Ubuntu 22.04 and later
+          keyring_asc = "/etc/apt/keyrings/postgresql.asc"
+          keyring_gpg = "/etc/apt/keyrings/postgresql.gpg"
+
+          directory '/etc/apt/keyrings' do
+            mode '0755'
+            recursive true
+          end
+
+          remote_file keyring_asc do
+            source new_resource.apt_gpg_key_uri
+            mode '0644'
+            sensitive new_resource.sensitive
+            not_if { ::File.exist?(keyring_gpg) }
+            notifies :run, 'execute[dearmor_postgresql_key]', :immediately
+          end
+
+          execute 'dearmor_postgresql_key' do
+            command "gpg --batch --yes --dearmor -o #{keyring_gpg} #{keyring_asc}"
+            action :nothing
+          end
+
+          apt_repository repo_name do
+            uri          repo_uri
+            components   repo_components
+            distribution repo_distribution
+            key          nil
+            signed_by    keyring_gpg
+            cache_rebuild true
+          end
+        else
+          apt_repository "postgresql_org_repository_#{new_resource.version.to_s}" do
+            uri new_resource.apt_repository_uri
+            components ['main', new_resource.version.to_s]
+            distribution "#{node['lsb']['codename']}-pgdg"
+            key new_resource.apt_gpg_key_uri
+            cache_rebuild true
+          end
+        end
       end
     else
       raise "Unsupported platform_family #{node['platform_family']}  or platform #{node['platform']}"
