@@ -199,7 +199,7 @@ action_class do
         repo_distribution = "#{codename}-pgdg"
 
         if node['platform_version'].to_f >= 20.04
-          # ues signed_by for Ubuntu 22.04 and later
+          # ues signed_by for Ubuntu 20.04 and later
           keyring_asc = "/etc/apt/keyrings/postgresql.asc"
           keyring_gpg = "/etc/apt/keyrings/postgresql.gpg"
 
